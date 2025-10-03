@@ -3,7 +3,7 @@
 ## Lab 1
 ['main.py'](/Lab_1/main.py)
 
-## Lab 1
+## Lab 2
 entry point of program: ['lab_2.py'](/Lab_2/lab_2.py)
 ### Explanation
 this programm converts base C# code into Python code. Base i mean that can converts func, classes and main func.
