@@ -8,7 +8,7 @@ C# code recommendations:
 - C# code can consist of several simple classes
 - the entry point of the program must look like this: public static void Main(string[] args)
 - support for simple assignment and typing operations var
-- Console output support is available.WriteLine();
+- Available output support Console.WriteLine();
 - an example of translator functionality is provided in the example.cs file
 """
 
