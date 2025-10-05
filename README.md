@@ -1,14 +1,25 @@
-# Modern Programming Language
+# Modern Programming Language (MPL)
 
 ## Lab 1
 ['main.py'](/Lab_1/main.py)
 
-## Lab 2
+
+## Translator from C# code to Python code (Lab 2) 
 entry point of program: ['lab_2.py'](/Lab_2/lab_2.py)
+
 ### Explanation
 this programm converts base C# code into Python code. Base i mean that can converts func, classes and main func.
 
 all the functionality of the program is stored in direction `/Lab_2/Translator/`
+
+### C# code recommendations:
+- __the C# code must be error-free!__
+- C# code can consist of several simple classes
+- The entry point of the program must look like this: `public static void Main(string[] args)`
+- Support for simple assignment and typing operations var
+- Available output support `Console.WriteLine();`
+- An example of translator functionality is provided in the ['example.cs'](/Lab_2/example.cs) file
+
 ### Hot to Use
 ['Example'](/Lab_2/lab_2.py)
 
