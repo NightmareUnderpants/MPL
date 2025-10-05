@@ -7,6 +7,7 @@ from .PropertyTranslator import PropertyTranslator
 from .MethodTranslator import MethodTranslator
 from .FieldTranslator import FieldTranslator
 from .MainClassTranslator import MainClassTranslator
+from .ConstructorTranslator import ConstructorTranslator
 
 class Translator:
     def __init__(self):
@@ -19,7 +20,9 @@ class Translator:
         self.nested_block_count: int = 0
 
         self.pending_open: bool = False
-        self.pending_prev_context: Optional[str] = None
+        self.pending_new_context: Optional[str] = None
+
+        self.python_lines = []
 
         # translators
         self.Using = UsingTranslator()
@@ -29,6 +32,7 @@ class Translator:
         self.Method = MethodTranslator()
         self.Field = FieldTranslator()
         self.Main = MainClassTranslator()
+        self.Constructor = ConstructorTranslator()
 
         self.collecting_main: bool = False
         self.main_body_lines: List[str] = []
@@ -51,7 +55,6 @@ class Translator:
             self.imports.add(s)
 
         lines = code.split('\n')
-        python_lines = []
         i = 0
 
         while i < len(lines):
@@ -67,7 +70,7 @@ class Translator:
                     # store translated main body (no top-level indent here)
                     self.main_body_lines.append(translated_line)
                 else:
-                    python_lines.append(self._get_indent() + translated_line)
+                    self.python_lines.append(self._get_indent() + translated_line)
 
             self._handle_braces(line, prev_context)
 
@@ -75,9 +78,9 @@ class Translator:
                 if self.Main.uses_args:
                     self.imports.add('import sys')
 
-                python_lines.append('if __name__ == "__main__":')
+                self.python_lines.append('if __name__ == "__main__":')
                 for ml in self.main_body_lines:
-                    python_lines.append('    ' + ml)
+                    self.python_lines.append('    ' + ml)
 
                 self.collecting_main = False
                 self.main_body_lines = []
@@ -85,7 +88,7 @@ class Translator:
 
             i += 1
 
-        return python_lines
+        return self.python_lines
 
     def _handle_braces(self, line: str, prev_context: str):
         if not line:
@@ -97,28 +100,37 @@ class Translator:
         open_count = line.count('{')
         close_count = line.count('}')
 
+        # Если раньше мы ждали открывающую скобку для ранее объявленного контекста
         if self.pending_open:
             if open_count > 0:
-                self.context_stack.append(self.pending_prev_context)
+                # теперь действительно открываем отложенный контекст
+                if self.pending_new_context:
+                    self.context_stack.append(self.pending_new_context)
                 self.pending_open = False
-                self.pending_prev_context = None
+                self.pending_new_context = None
                 open_count -= 1
             else:
                 return
 
+        # Если контекст изменился (например: namespace -> class)
         if self.context != prev_context:
             if open_count > 0:
-                self.context_stack.append(prev_context)
+                # сразу открываем новый контекст — пушим его в стек (активный контекст)
+                self.context_stack.append(self.context)
                 open_count -= 1
             else:
+                # ожидаем '{' на следующей строке — сохраним какой контекст откроется
                 self.pending_open = True
-                self.pending_prev_context = prev_context
+                self.pending_new_context = self.context
                 return
 
+        # оставшиеся '{' — это локальные вложенные блоки (if/for/локальные scope)
         if open_count > 0:
             self.nested_block_count += open_count
 
+        # обрабатываем закрывающие '}'
         if close_count > 0:
+            # сначала закрываем вложенные блоки
             if close_count <= self.nested_block_count:
                 self.nested_block_count -= close_count
                 close_count = 0
@@ -126,15 +138,20 @@ class Translator:
                 close_count -= self.nested_block_count
                 self.nested_block_count = 0
 
-            last_popped = None
-            pop_times = min(close_count, len(self.context_stack))
-            for _ in range(pop_times):
-                last_popped = self.context_stack.pop()
-            if last_popped is not None:
-                self.context = last_popped
+            # затем закрываем контексты (pop активных контекстов)
+            for _ in range(close_count):
+                if self.context_stack:
+                    self.context_stack.pop()
+
+            # восстановим текущий контекст (последний активный или global)
+            if self.context_stack:
+                self.context = self.context_stack[-1]
+            else:
+                self.context = 'global'
 
     def _get_indent(self) -> str:
-        total_levels = len(self.context_stack) + self.nested_block_count
+        indentable = [ctx for ctx in self.context_stack if ctx not in ('namespace', 'global')]
+        total_levels = len(indentable) + self.nested_block_count
         return '    ' * total_levels
 
     def translate_line(self, line: str) -> str:
@@ -174,27 +191,25 @@ class Translator:
         return ""
 
     def _translate_class_scope(self, line: str) -> str:
-        # если это объявление метода Main — переключаемся в collecting_main режим
         if self.Main.is_main_declaration(line):
-            # пометим, если передан args
             if self.Main.has_args(line):
                 self.Main.uses_args = True
-            # перевод заголовка main не выводим сейчас — соберём тело и вставим позже
             self.context = 'main'
             self.current_method = 'Main'
             self.collecting_main = True
-            return ""  # не выводим саму сигнатуру
+            return ""
 
-        # стандартная логика для других методов/свойств
         if line.startswith('public ') or line.startswith('private ') or line.startswith('protected '):
             if '(' in line and ')' in line and not line.endswith(';'):
                 if self._is_constructor(line):
-                    return ""
+                    self.context = 'method'
+                    return self.Constructor.translate_constructor(self.current_class, self.python_lines, line)
                 else:
                     self.context = 'method'
                     method_name = self._extract_method_name(line)
                     self.current_method = method_name
                     return self.Method.translate_method(line)
+
             elif ' get; ' in line or ' set; ' in line or '=>' in line or '{ get;' in line:
                 return self.Property.translate_property(line)
         elif line.startswith('['):
@@ -202,11 +217,9 @@ class Translator:
         return ""
 
     def _translate_method_scope(self, line: str) -> str:
-        # возвращение обрабатываем через Method translator
         if 'return' in line:
             return self.Method.translate_return(line)
 
-        # обычные замены в методах
         if 'Console.WriteLine' in line:
             return line.replace('Console.WriteLine', 'print')
         elif 'Console.Write' in line:

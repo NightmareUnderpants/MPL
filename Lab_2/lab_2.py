@@ -1,6 +1,18 @@
 from Lab_2.Translator import Translator
 import os
 
+"""
+Translator from C# code to Python code.
+C# code recommendations:
+- the C# code must be error-free!
+- C# code can consist of several simple classes
+- the entry point of the program must look like this: public static void Main(string[] args)
+- support for simple assignment and typing operations var
+- Console output support is available.WriteLine();
+- an example of translator functionality is provided in the example.cs file
+"""
+
+
 if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.abspath(__file__))
     file_path = os.path.join(script_dir, "example.cs")

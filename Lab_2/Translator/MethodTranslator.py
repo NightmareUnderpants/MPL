@@ -19,11 +19,9 @@ class MethodTranslator:
 
         # if is: return $"...";
         if expr.startswith('$"') or expr.startswith("$'"):
-            # убираем $ и оставляем f
             expr = "f" + expr[1:]
 
-            # внутри C# допускает {Var} без self. -> в Python лучше явно self.Var
-            expr = re.sub(r"\{([A-Z]\w*)\}", r"{self.\1}", expr)
+            expr = re.sub(r"\{([A-Z]\w*)\}", r"{self.\1}", expr).lower()
 
             return f"return {expr}"
 

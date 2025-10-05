@@ -1,6 +1,7 @@
 import re
 from .TypeMapper import TypeMapper
 
+
 class PropertyTranslator:
     def translate_property(self, line: str) -> str:
         if 'get;' in line and 'set;' in line:
@@ -11,4 +12,4 @@ class PropertyTranslator:
         if match:
             type_name, prop_name = match.groups()
             python_type = TypeMapper.map_type(type_name)
-            return f"    {prop_name.lower()}: {python_type} = None"
+            return f"self.{prop_name.lower()}: {python_type} = None"
